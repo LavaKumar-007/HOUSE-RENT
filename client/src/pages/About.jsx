@@ -1,6 +1,9 @@
+import PageMeta from "../components/PageMeta";
+
 function About() {
   return (
-    <div className="page-section">
+    <div className="page-section" id="main">
+      <PageMeta title="About" description="Learn about HouseHunt rental platform" />
       <div className="container-xl about-grid">
         <div>
           <p className="section-label">Our story</p>

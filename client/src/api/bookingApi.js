@@ -5,13 +5,13 @@ export const createBooking = async (data) => {
   return res.data;
 };
 
-export const getMyBookings = async () => {
-  const res = await API.get("/bookings/mine");
+export const getMyBookings = async (params = {}) => {
+  const res = await API.get("/bookings/mine", { params });
   return res.data;
 };
 
-export const getOwnerBookings = async () => {
-  const res = await API.get("/bookings/owner");
+export const getOwnerBookings = async (params = {}) => {
+  const res = await API.get("/bookings/owner", { params });
   return res.data;
 };
 
@@ -22,5 +22,15 @@ export const updateBookingStatus = async (id, status) => {
 
 export const getAllBookings = async () => {
   const res = await API.get("/bookings/all");
+  return res.data;
+};
+
+export const getBookingById = async (id) => {
+  const res = await API.get(`/bookings/${id}`);
+  return res.data;
+};
+
+export const cancelBooking = async (id) => {
+  const res = await API.patch(`/bookings/${id}/cancel`);
   return res.data;
 };

@@ -1,150 +1,112 @@
-import { useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { useEffect, useState } from "react";
+import { Link, useLocation, useNavigate } from "react-router-dom";
+import { FaBell } from "react-icons/fa";
 import { motion } from "framer-motion";
 import { useAuth } from "../context/AuthContext";
+import { getNotifications, markAllNotificationsRead } from "../api/notificationApi";
+
+function NotificationBell() {
+  const [unread, setUnread] = useState(0);
+  const [open, setOpen] = useState(false);
+  const [notifications, setNotifications] = useState([]);
+  const navigate = useNavigate();
+
+  const load = async () => {
+    try {
+      const data = await getNotifications();
+      setUnread(data.unreadCount);
+      setNotifications(data.notifications);
+    } catch {}
+  };
+
+  useEffect(() => {
+    load();
+    const interval = setInterval(load, 60000);
+    return () => clearInterval(interval);
+  }, []);
+
+  const handleOpen = async () => {
+    setOpen(!open);
+    if (!open && unread > 0) {
+      await markAllNotificationsRead();
+      setUnread(0);
+    }
+  };
+
+  return (
+    <div style={{ position: "relative" }}>
+      <button className="notif-bell" onClick={handleOpen} aria-label="Notifications">
+        <FaBell />
+        {unread > 0 && <span className="notif-badge">{unread}</span>}
+      </button>
+      {open && (
+        <div className="glass-card" style={{ position: "absolute", right: 0, top: "100%", marginTop: 8, width: 320, maxHeight: 400, overflow: "auto", padding: 12, zIndex: 100 }}>
+          {notifications.length === 0 ? (
+            <p style={{ padding: 12, color: "var(--text-muted)" }}>No notifications</p>
+          ) : (
+            notifications.slice(0, 8).map((n) => (
+              <div key={n._id} style={{ padding: "10px 8px", borderBottom: "1px solid var(--border)", cursor: "pointer" }} onClick={() => { navigate(n.link || "/dashboard"); setOpen(false); }}>
+                <strong style={{ fontSize: "0.9rem" }}>{n.title}</strong>
+                <p style={{ fontSize: "0.8rem", color: "var(--text-muted)", marginTop: 4 }}>{n.message}</p>
+              </div>
+            ))
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
 
 function Navbar() {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
   const [menuOpen, setMenuOpen] = useState(false);
+  const [shrunk, setShrunk] = useState(false);
 
-  const handleLogout = () => {
-    logout();
-    navigate("/");
-  };
+  useEffect(() => {
+    const onScroll = () => setShrunk(window.scrollY > 60);
+    window.addEventListener("scroll", onScroll);
+    return () => window.removeEventListener("scroll", onScroll);
+  }, []);
+
+  const handleLogout = () => { logout(); navigate("/"); };
+  const isActive = (path) => location.pathname === path ? "active" : "";
 
   return (
-    <motion.nav
-      initial={{ y: -80, opacity: 0 }}
-      animate={{ y: 0, opacity: 1 }}
-      transition={{ duration: 0.6 }}
-      className="navbar-custom"
-    >
+    <motion.nav initial={{ y: -80, opacity: 0 }} animate={{ y: 0, opacity: 1 }} className={`navbar-custom ${shrunk ? "shrunk" : ""}`}>
+      <a href="#main" className="skip-link">Skip to content</a>
       <div className="container-xl navbar-inner">
         <Link to="/" className="navbar-brand">
           <span className="brand-mark">H</span>
           <span>HouseHunt</span>
         </Link>
-
-        <button
-          className="menu-toggle"
-          onClick={() => setMenuOpen(!menuOpen)}
-          aria-label="Toggle menu"
-        >
-          <span />
-          <span />
+        <button className="menu-toggle" onClick={() => setMenuOpen(!menuOpen)} aria-label="Toggle menu">
+          <span /><span />
         </button>
-
         <div className={`navbar-links ${menuOpen ? "open" : ""}`}>
-          <Link to="/" onClick={() => setMenuOpen(false)}>Home</Link>
-          <Link to="/properties" onClick={() => setMenuOpen(false)}>Properties</Link>
-          <Link to="/about" onClick={() => setMenuOpen(false)}>About</Link>
-
+          <Link to="/" className={isActive("/")} onClick={() => setMenuOpen(false)}>Home</Link>
+          <Link to="/properties" className={isActive("/properties")} onClick={() => setMenuOpen(false)}>Properties</Link>
+          <Link to="/about" className={isActive("/about")} onClick={() => setMenuOpen(false)}>About</Link>
           {user ? (
             <>
-              <Link to="/dashboard" onClick={() => setMenuOpen(false)}>Dashboard</Link>
+              {user.role === "tenant" && <Link to="/favorites" className={isActive("/favorites")} onClick={() => setMenuOpen(false)}>Saved</Link>}
+              <Link to="/dashboard" className={isActive("/dashboard")} onClick={() => setMenuOpen(false)}>Dashboard</Link>
+              <Link to="/profile" className={isActive("/profile")} onClick={() => setMenuOpen(false)}>Profile</Link>
               {(user.role === "owner" || user.role === "admin") && (
                 <Link to="/add-property" onClick={() => setMenuOpen(false)}>List Property</Link>
               )}
-              <button className="btn-outline-custom nav-btn" onClick={handleLogout}>
-                Logout
-              </button>
+              <NotificationBell />
+              <button className="btn-outline-custom nav-btn" onClick={handleLogout}>Logout</button>
             </>
           ) : (
             <>
               <Link to="/login" onClick={() => setMenuOpen(false)}>Login</Link>
-              <Link to="/register" onClick={() => setMenuOpen(false)}>
-                <button className="btn-primary-custom">Sign Up</button>
-              </Link>
+              <Link to="/register" className="btn-primary-custom" onClick={() => setMenuOpen(false)}>Sign Up</Link>
             </>
           )}
         </div>
       </div>
-
-      <style>{`
-        .navbar-custom {
-          position: fixed;
-          top: 0;
-          width: 100%;
-          z-index: 1000;
-          background: rgba(247, 245, 242, 0.88);
-          backdrop-filter: blur(20px);
-          border-bottom: 1px solid rgba(15, 23, 42, 0.06);
-        }
-        .navbar-inner {
-          display: flex;
-          align-items: center;
-          justify-content: space-between;
-          padding-top: 18px;
-          padding-bottom: 18px;
-        }
-        .navbar-brand {
-          display: flex;
-          align-items: center;
-          gap: 12px;
-          font-weight: 800;
-          font-size: 1.25rem;
-        }
-        .brand-mark {
-          width: 42px;
-          height: 42px;
-          border-radius: 14px;
-          background: var(--primary);
-          color: #fff;
-          display: grid;
-          place-items: center;
-          font-family: var(--font-display);
-          font-size: 1.3rem;
-        }
-        .navbar-links {
-          display: flex;
-          align-items: center;
-          gap: 28px;
-        }
-        .navbar-links a {
-          font-weight: 600;
-          color: var(--text);
-          transition: color 0.2s;
-        }
-        .navbar-links a:hover { color: var(--primary); }
-        .nav-btn { font-size: 0.9rem; }
-        .menu-toggle {
-          display: none;
-          flex-direction: column;
-          gap: 6px;
-          background: none;
-          border: none;
-          cursor: pointer;
-        }
-        .menu-toggle span {
-          width: 26px;
-          height: 2px;
-          background: var(--text);
-        }
-        @media (max-width: 900px) {
-          .menu-toggle { display: flex; }
-          .navbar-links {
-            position: absolute;
-            top: 100%;
-            left: 0;
-            right: 0;
-            background: #fff;
-            flex-direction: column;
-            padding: 24px;
-            gap: 18px;
-            border-bottom: 1px solid var(--border);
-            transform: translateY(-10px);
-            opacity: 0;
-            pointer-events: none;
-            transition: all 0.25s ease;
-          }
-          .navbar-links.open {
-            transform: translateY(0);
-            opacity: 1;
-            pointer-events: all;
-          }
-        }
-      `}</style>
     </motion.nav>
   );
 }

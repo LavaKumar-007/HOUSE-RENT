@@ -34,3 +34,8 @@ export const getAdminStats = async () => {
   const res = await API.get("/properties/admin/stats");
   return res.data;
 };
+
+export const getAllPropertiesAdmin = async () => {
+  const res = await API.get("/properties/admin/all");
+  return res.data;
+};
