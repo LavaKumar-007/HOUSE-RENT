@@ -1,0 +1,42 @@
+module.exports = [
+  {
+    fullName: "Admin User",
+    email: "admin@househunt.com",
+    password: "Admin@123",
+    phone: "9000000001",
+    role: "admin",
+    isVerified: true,
+  },
+  {
+    fullName: "Rahul Sharma",
+    email: "rahul@househunt.com",
+    password: "Owner@123",
+    phone: "9000000002",
+    role: "owner",
+    isVerified: true,
+  },
+  {
+    fullName: "Priya Reddy",
+    email: "priya@househunt.com",
+    password: "Owner@123",
+    phone: "9000000003",
+    role: "owner",
+    isVerified: true,
+  },
+  {
+    fullName: "Arjun Mehta",
+    email: "arjun@househunt.com",
+    password: "Owner@123",
+    phone: "9000000004",
+    role: "owner",
+    isVerified: true,
+  },
+  {
+    fullName: "Sneha Patel",
+    email: "sneha@househunt.com",
+    password: "Tenant@123",
+    phone: "9000000005",
+    role: "tenant",
+    isVerified: true,
+  },
+];

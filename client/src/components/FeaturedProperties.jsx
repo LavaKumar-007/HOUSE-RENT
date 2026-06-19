@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { Link } from "react-router-dom";
 import PropertyCard from "./PropertyCard";
 import { getProperties } from "../api/propertyApi";
 
@@ -10,9 +11,8 @@ function FeaturedProperties() {
     const fetchProperties = async () => {
       try {
         const data = await getProperties();
-
         if (data.success) {
-          setProperties(data.properties);
+          setProperties(data.properties.slice(0, 6));
         }
       } catch (error) {
         console.error("Error fetching properties:", error);
@@ -20,60 +20,53 @@ function FeaturedProperties() {
         setLoading(false);
       }
     };
-
     fetchProperties();
   }, []);
 
   return (
-    <section className="py-5 bg-light">
-      <div className="container">
-        <div className="text-center mb-5">
-          <h2
-  style={{
-    fontSize: "3rem",
-    fontWeight: "700",
-    textAlign: "center",
-    marginBottom: "10px",
-  }}
->
-            Featured Properties
-          </h2>
-          <p
-  style={{
-    textAlign: "center",
-    color: "#64748b",
-    marginBottom: "50px",
-  }}
->
-  Discover handpicked homes from verified owners
-</p>
-
-          <p className="text-muted">
-            Discover verified rental homes across India
-          </p>
+    <section className="featured-section">
+      <div className="container-xl">
+        <div className="featured-header">
+          <div>
+            <p className="section-label">Curated for you</p>
+            <h2 className="display-title">Featured properties</h2>
+          </div>
+          <Link to="/properties" className="btn-outline-custom">
+            View all
+          </Link>
         </div>
 
         {loading ? (
-          <div className="text-center">
-            <h5>Loading properties...</h5>
-          </div>
-        ) : properties.length === 0 ? (
-          <div className="text-center">
-            <h5>No properties available</h5>
-          </div>
+          <div className="page-loader"><div className="loader-ring" /></div>
         ) : (
-          <div className="row g-4">
-            {properties.map((property) => (
-              <div
-                key={property._id}
-                className="col-lg-4 col-md-6"
-              >
-                <PropertyCard property={property} />
-              </div>
+          <div className="properties-grid">
+            {properties.map((property, i) => (
+              <PropertyCard key={property._id} property={property} index={i} />
             ))}
           </div>
         )}
       </div>
+
+      <style>{`
+        .featured-section {
+          padding: 100px 0;
+          background: var(--bg);
+        }
+        .featured-header {
+          display: flex;
+          justify-content: space-between;
+          align-items: flex-end;
+          margin-bottom: 48px;
+          gap: 20px;
+          flex-wrap: wrap;
+        }
+        .featured-header h2 { font-size: clamp(2rem, 4vw, 3rem); margin-top: 8px; }
+        .properties-grid {
+          display: grid;
+          grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+          gap: 28px;
+        }
+      `}</style>
     </section>
   );
 }

@@ -28,9 +28,17 @@ const userSchema = new mongoose.Schema(
 
     role: {
       type: String,
-      enum: ["tenant", "owner"],
+      enum: ["tenant", "owner", "admin"],
       default: "tenant",
     },
+
+    isVerified: {
+      type: Boolean,
+      default: false,
+    },
+
+    verificationToken: String,
+    verificationTokenExpire: Date,
 
     profileImage: {
       type: String,

@@ -5,12 +5,21 @@ const {
   addProperty,
   getAllProperties,
   getPropertyById,
+  getMyProperties,
+  updateProperty,
+  deleteProperty,
+  getAdminStats,
 } = require("../controllers/propertyController");
 
-router.get("/", getAllProperties);
+const { protect, authorize } = require("../middleware/authMiddleware");
 
+router.get("/", getAllProperties);
+router.get("/mine", protect, authorize("owner", "admin"), getMyProperties);
+router.get("/admin/stats", protect, authorize("admin"), getAdminStats);
 router.get("/:id", getPropertyById);
 
-router.post("/", addProperty);
+router.post("/", protect, authorize("owner", "admin"), addProperty);
+router.put("/:id", protect, updateProperty);
+router.delete("/:id", protect, deleteProperty);
 
 module.exports = router;

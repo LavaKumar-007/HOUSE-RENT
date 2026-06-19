@@ -1,16 +1,36 @@
-import axios from "axios";
+import API from "./axios";
 
-const API_URL = "http://localhost:5000/api/properties";
-
-export const getProperties = async () => {
-  const response = await axios.get(API_URL);
-  return response.data;
+export const getProperties = async (params = {}) => {
+  const res = await API.get("/properties", { params });
+  return res.data;
 };
 
 export const getPropertyById = async (id) => {
-  const response = await axios.get(
-    `${API_URL}/${id}`
-  );
+  const res = await API.get(`/properties/${id}`);
+  return res.data;
+};
 
-  return response.data;
+export const getMyProperties = async () => {
+  const res = await API.get("/properties/mine");
+  return res.data;
+};
+
+export const addProperty = async (data) => {
+  const res = await API.post("/properties", data);
+  return res.data;
+};
+
+export const updateProperty = async (id, data) => {
+  const res = await API.put(`/properties/${id}`, data);
+  return res.data;
+};
+
+export const deleteProperty = async (id) => {
+  const res = await API.delete(`/properties/${id}`);
+  return res.data;
+};
+
+export const getAdminStats = async () => {
+  const res = await API.get("/properties/admin/stats");
+  return res.data;
 };
