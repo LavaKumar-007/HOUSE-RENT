@@ -1,8 +1,12 @@
 const crypto = require("crypto");
 const User = require("../models/User");
+const Property = require("../models/Property");
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
-const { sendVerificationEmail } = require("../utils/email");
+const {
+  sendVerificationEmail,
+  sendPasswordResetEmail,
+} = require("../utils/email");
 
 const generateToken = (user) => {
   return jwt.sign(
@@ -11,6 +15,16 @@ const generateToken = (user) => {
     { expiresIn: "7d" }
   );
 };
+
+const formatUser = (user) => ({
+  id: user._id,
+  fullName: user.fullName,
+  email: user.email,
+  phone: user.phone,
+  role: user.role,
+  profileImage: user.profileImage,
+  favorites: user.favorites,
+});
 
 const registerUser = async (req, res) => {
   try {
@@ -23,6 +37,13 @@ const registerUser = async (req, res) => {
       });
     }
 
+    if (password.length < 6) {
+      return res.status(400).json({
+        success: false,
+        message: "Password must be at least 6 characters",
+      });
+    }
+
     if (role && !["tenant", "owner"].includes(role)) {
       return res.status(400).json({
         success: false,
@@ -31,7 +52,6 @@ const registerUser = async (req, res) => {
     }
 
     const existingUser = await User.findOne({ email });
-
     if (existingUser) {
       return res.status(400).json({
         success: false,
@@ -40,7 +60,6 @@ const registerUser = async (req, res) => {
     }
 
     const verificationToken = crypto.randomBytes(32).toString("hex");
-
     const hashedPassword = await bcrypt.hash(password, 10);
 
     const user = await User.create({
@@ -59,38 +78,20 @@ const registerUser = async (req, res) => {
       success: true,
       message:
         "Registration successful. Please check your email to verify your account.",
-      user: {
-        id: user._id,
-        fullName: user.fullName,
-        email: user.email,
-        role: user.role,
-      },
+      user: formatUser(user),
     });
   } catch (error) {
     console.error(error);
-    res.status(500).json({
-      success: false,
-      message: "Server Error",
-    });
+    res.status(500).json({ success: false, message: "Server Error" });
   }
 };
 
 const loginUser = async (req, res) => {
   try {
     const { email, password } = req.body;
-
     const user = await User.findOne({ email });
 
-    if (!user) {
-      return res.status(400).json({
-        success: false,
-        message: "Invalid credentials",
-      });
-    }
-
-    const isMatch = await bcrypt.compare(password, user.password);
-
-    if (!isMatch) {
+    if (!user || !(await bcrypt.compare(password, user.password))) {
       return res.status(400).json({
         success: false,
         message: "Invalid credentials",
@@ -106,24 +107,15 @@ const loginUser = async (req, res) => {
     }
 
     const token = generateToken(user);
-
     res.status(200).json({
       success: true,
       message: "Login successful",
       token,
-      user: {
-        id: user._id,
-        fullName: user.fullName,
-        email: user.email,
-        role: user.role,
-      },
+      user: formatUser(user),
     });
   } catch (error) {
     console.error(error);
-    res.status(500).json({
-      success: false,
-      message: "Server Error",
-    });
+    res.status(500).json({ success: false, message: "Server Error" });
   }
 };
 
@@ -147,24 +139,15 @@ const verifyEmail = async (req, res) => {
     await user.save();
 
     const token = generateToken(user);
-
     res.status(200).json({
       success: true,
       message: "Email verified successfully",
       token,
-      user: {
-        id: user._id,
-        fullName: user.fullName,
-        email: user.email,
-        role: user.role,
-      },
+      user: formatUser(user),
     });
   } catch (error) {
     console.error(error);
-    res.status(500).json({
-      success: false,
-      message: "Server Error",
-    });
+    res.status(500).json({ success: false, message: "Server Error" });
   }
 };
 
@@ -174,9 +157,9 @@ const resendVerification = async (req, res) => {
     const user = await User.findOne({ email });
 
     if (!user) {
-      return res.status(404).json({
-        success: false,
-        message: "User not found",
+      return res.status(200).json({
+        success: true,
+        message: "If an account exists, a verification email has been sent",
       });
     }
 
@@ -191,7 +174,6 @@ const resendVerification = async (req, res) => {
     user.verificationToken = verificationToken;
     user.verificationTokenExpire = Date.now() + 24 * 60 * 60 * 1000;
     await user.save();
-
     await sendVerificationEmail(user, verificationToken);
 
     res.status(200).json({
@@ -200,16 +182,78 @@ const resendVerification = async (req, res) => {
     });
   } catch (error) {
     console.error(error);
-    res.status(500).json({
-      success: false,
-      message: "Server Error",
+    res.status(500).json({ success: false, message: "Server Error" });
+  }
+};
+
+const forgotPassword = async (req, res) => {
+  try {
+    const { email } = req.body;
+    const user = await User.findOne({ email });
+
+    if (user) {
+      const resetToken = crypto.randomBytes(32).toString("hex");
+      user.resetPasswordToken = resetToken;
+      user.resetPasswordExpire = Date.now() + 60 * 60 * 1000;
+      await user.save();
+      await sendPasswordResetEmail(user, resetToken);
+    }
+
+    res.status(200).json({
+      success: true,
+      message: "If an account exists, a password reset link has been sent",
     });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ success: false, message: "Server Error" });
+  }
+};
+
+const resetPassword = async (req, res) => {
+  try {
+    const { password } = req.body;
+    const user = await User.findOne({
+      resetPasswordToken: req.params.token,
+      resetPasswordExpire: { $gt: Date.now() },
+    });
+
+    if (!user) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid or expired reset link",
+      });
+    }
+
+    if (!password || password.length < 6) {
+      return res.status(400).json({
+        success: false,
+        message: "Password must be at least 6 characters",
+      });
+    }
+
+    user.password = await bcrypt.hash(password, 10);
+    user.resetPasswordToken = undefined;
+    user.resetPasswordExpire = undefined;
+    await user.save();
+
+    const token = generateToken(user);
+    res.status(200).json({
+      success: true,
+      message: "Password reset successful",
+      token,
+      user: formatUser(user),
+    });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ success: false, message: "Server Error" });
   }
 };
 
 const getMe = async (req, res) => {
   try {
-    const user = await User.findById(req.user.id).select("-password");
+    const user = await User.findById(req.user.id)
+      .select("-password")
+      .populate("favorites", "title city price images propertyType");
 
     if (!user) {
       return res.status(404).json({
@@ -218,24 +262,99 @@ const getMe = async (req, res) => {
       });
     }
 
+    res.status(200).json({ success: true, user });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ success: false, message: "Server Error" });
+  }
+};
+
+const updateProfile = async (req, res) => {
+  try {
+    const { fullName, phone, profileImage } = req.body;
+    const user = await User.findById(req.user.id);
+
+    if (fullName) user.fullName = fullName;
+    if (phone) user.phone = phone;
+    if (profileImage !== undefined) user.profileImage = profileImage;
+    await user.save();
+
     res.status(200).json({
       success: true,
-      user,
+      message: "Profile updated",
+      user: formatUser(user),
     });
   } catch (error) {
     console.error(error);
-    res.status(500).json({
-      success: false,
-      message: "Server Error",
+    res.status(500).json({ success: false, message: "Server Error" });
+  }
+};
+
+const changePassword = async (req, res) => {
+  try {
+    const { currentPassword, newPassword } = req.body;
+    const user = await User.findById(req.user.id);
+
+    if (!(await bcrypt.compare(currentPassword, user.password))) {
+      return res.status(400).json({
+        success: false,
+        message: "Current password is incorrect",
+      });
+    }
+
+    if (!newPassword || newPassword.length < 6) {
+      return res.status(400).json({
+        success: false,
+        message: "New password must be at least 6 characters",
+      });
+    }
+
+    user.password = await bcrypt.hash(newPassword, 10);
+    await user.save();
+
+    res.status(200).json({
+      success: true,
+      message: "Password changed successfully",
     });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ success: false, message: "Server Error" });
+  }
+};
+
+const getFavorites = async (req, res) => {
+  try {
+    const user = await User.findById(req.user.id).populate(
+      "favorites",
+      "title city state price images propertyType bedrooms bathrooms area"
+    );
+
+    res.status(200).json({
+      success: true,
+      count: user.favorites.length,
+      properties: user.favorites,
+    });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ success: false, message: "Server Error" });
   }
 };
 
 const toggleFavorite = async (req, res) => {
   try {
+    const property = await Property.findById(req.params.propertyId);
+    if (!property) {
+      return res.status(404).json({
+        success: false,
+        message: "Property not found",
+      });
+    }
+
     const user = await User.findById(req.user.id);
     const propertyId = req.params.propertyId;
-    const index = user.favorites.indexOf(propertyId);
+    const index = user.favorites.findIndex(
+      (id) => id.toString() === propertyId
+    );
 
     if (index > -1) {
       user.favorites.splice(index, 1);
@@ -251,10 +370,30 @@ const toggleFavorite = async (req, res) => {
     });
   } catch (error) {
     console.error(error);
-    res.status(500).json({
-      success: false,
-      message: "Server Error",
-    });
+    res.status(500).json({ success: false, message: "Server Error" });
+  }
+};
+
+const getAllUsers = async (req, res) => {
+  try {
+    const { role, search } = req.query;
+    const filter = {};
+    if (role) filter.role = role;
+    if (search) {
+      filter.$or = [
+        { fullName: new RegExp(search, "i") },
+        { email: new RegExp(search, "i") },
+      ];
+    }
+
+    const users = await User.find(filter)
+      .select("-password -verificationToken -resetPasswordToken")
+      .sort({ createdAt: -1 });
+
+    res.status(200).json({ success: true, count: users.length, users });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ success: false, message: "Server Error" });
   }
 };
 
@@ -263,6 +402,12 @@ module.exports = {
   loginUser,
   verifyEmail,
   resendVerification,
+  forgotPassword,
+  resetPassword,
   getMe,
+  updateProfile,
+  changePassword,
+  getFavorites,
   toggleFavorite,
+  getAllUsers,
 };

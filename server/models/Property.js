@@ -74,10 +74,26 @@ const propertySchema = new mongoose.Schema(
       type: Boolean,
       default: true,
     },
+
+    lat: Number,
+    lng: Number,
+
+    averageRating: {
+      type: Number,
+      default: 0,
+    },
+
+    reviewCount: {
+      type: Number,
+      default: 0,
+    },
   },
   {
     timestamps: true,
   }
 );
+
+propertySchema.index({ city: 1, available: 1, price: 1 });
+propertySchema.index({ title: "text", description: "text", city: "text" });
 
 module.exports = mongoose.model("Property", propertySchema);

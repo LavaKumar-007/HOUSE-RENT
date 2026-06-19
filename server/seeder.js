@@ -14,6 +14,11 @@ dotenv.config();
 
 const importData = async () => {
   try {
+    if (process.env.NODE_ENV === "production" && !process.env.SEED_FORCE) {
+      console.error("Seeding blocked in production. Set SEED_FORCE=true to override.");
+      process.exit(1);
+    }
+
     await connectDB();
 
     await Booking.deleteMany();

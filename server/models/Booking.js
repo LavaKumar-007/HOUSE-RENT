@@ -41,4 +41,7 @@ const bookingSchema = new mongoose.Schema(
   }
 );
 
+bookingSchema.index({ tenant: 1, status: 1 });
+bookingSchema.index({ owner: 1, status: 1 });
+
 module.exports = mongoose.model("Booking", bookingSchema);

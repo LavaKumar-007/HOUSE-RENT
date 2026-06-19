@@ -1,9 +1,10 @@
 const Property = require("../models/Property");
+const { pickPropertyFields } = require("../utils/propertyDto");
 
 const addProperty = async (req, res) => {
   try {
     const property = await Property.create({
-      ...req.body,
+      ...pickPropertyFields(req.body),
       owner: req.user.id,
     });
 
@@ -16,21 +17,30 @@ const addProperty = async (req, res) => {
     console.error(error);
     res.status(500).json({
       success: false,
-      message: error.message || "Failed to add property",
+      message: "Failed to add property",
     });
   }
 };
 
 const getAllProperties = async (req, res) => {
   try {
-    const { city, propertyType, minPrice, maxPrice, bedrooms, search } =
-      req.query;
+    const {
+      city,
+      propertyType,
+      minPrice,
+      maxPrice,
+      bedrooms,
+      search,
+      page = 1,
+      limit = 12,
+      sort = "-createdAt",
+    } = req.query;
 
     const filter = { available: true };
 
     if (city) filter.city = new RegExp(city, "i");
     if (propertyType) filter.propertyType = propertyType;
-    if (bedrooms) filter.bedrooms = Number(bedrooms);
+    if (bedrooms) filter.bedrooms = { $gte: Number(bedrooms) };
     if (minPrice || maxPrice) {
       filter.price = {};
       if (minPrice) filter.price.$gte = Number(minPrice);
@@ -45,13 +55,33 @@ const getAllProperties = async (req, res) => {
       ];
     }
 
-    const properties = await Property.find(filter)
-      .populate("owner", "fullName email phone")
-      .sort({ createdAt: -1 });
+    const pageNum = Math.max(1, Number(page));
+    const limitNum = Math.min(50, Math.max(1, Number(limit)));
+    const skip = (pageNum - 1) * limitNum;
+
+    const sortMap = {
+      price: { price: 1 },
+      "-price": { price: -1 },
+      createdAt: { createdAt: 1 },
+      "-createdAt": { createdAt: -1 },
+    };
+    const sortOption = sortMap[sort] || { createdAt: -1 };
+
+    const [properties, total] = await Promise.all([
+      Property.find(filter)
+        .populate("owner", "fullName email phone isVerified")
+        .sort(sortOption)
+        .skip(skip)
+        .limit(limitNum),
+      Property.countDocuments(filter),
+    ]);
 
     res.status(200).json({
       success: true,
       count: properties.length,
+      total,
+      page: pageNum,
+      pages: Math.ceil(total / limitNum),
       properties,
     });
   } catch (error) {
@@ -67,7 +97,7 @@ const getPropertyById = async (req, res) => {
   try {
     const property = await Property.findById(req.params.id).populate(
       "owner",
-      "fullName email phone"
+      "fullName email phone isVerified"
     );
 
     if (!property) {
@@ -77,9 +107,18 @@ const getPropertyById = async (req, res) => {
       });
     }
 
+    const similar = await Property.find({
+      _id: { $ne: property._id },
+      city: property.city,
+      available: true,
+    })
+      .limit(4)
+      .select("title city price images propertyType bedrooms");
+
     res.status(200).json({
       success: true,
       property,
+      similar,
     });
   } catch (error) {
     console.error(error);
@@ -110,6 +149,26 @@ const getMyProperties = async (req, res) => {
   }
 };
 
+const getAllPropertiesAdmin = async (req, res) => {
+  try {
+    const properties = await Property.find()
+      .populate("owner", "fullName email")
+      .sort({ createdAt: -1 });
+
+    res.status(200).json({
+      success: true,
+      count: properties.length,
+      properties,
+    });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({
+      success: false,
+      message: "Failed to fetch properties",
+    });
+  }
+};
+
 const updateProperty = async (req, res) => {
   try {
     let property = await Property.findById(req.params.id);
@@ -131,10 +190,11 @@ const updateProperty = async (req, res) => {
       });
     }
 
-    property = await Property.findByIdAndUpdate(req.params.id, req.body, {
-      new: true,
-      runValidators: true,
-    });
+    property = await Property.findByIdAndUpdate(
+      req.params.id,
+      pickPropertyFields(req.body),
+      { new: true, runValidators: true }
+    );
 
     res.status(200).json({
       success: true,
@@ -191,15 +251,16 @@ const getAdminStats = async (req, res) => {
     const User = require("../models/User");
     const Booking = require("../models/Booking");
 
-    const [users, properties, bookings] = await Promise.all([
+    const [users, properties, bookings, pendingBookings] = await Promise.all([
       User.countDocuments(),
       Property.countDocuments(),
       Booking.countDocuments(),
+      Booking.countDocuments({ status: "pending" }),
     ]);
 
     res.status(200).json({
       success: true,
-      stats: { users, properties, bookings },
+      stats: { users, properties, bookings, pendingBookings },
     });
   } catch (error) {
     console.error(error);
@@ -215,6 +276,7 @@ module.exports = {
   getAllProperties,
   getPropertyById,
   getMyProperties,
+  getAllPropertiesAdmin,
   updateProperty,
   deleteProperty,
   getAdminStats,
